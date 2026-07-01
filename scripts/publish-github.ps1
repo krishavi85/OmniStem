@@ -1,5 +1,5 @@
 param(
-    [string]$RepositoryUrl = "https://github.com/krishavi85/omnistem-god-mode.git"
+    [string]$RepositoryUrl = "https://github.com/krishavi85/OmniStem.git"
 )
 $ErrorActionPreference = "Stop"
 git remote get-url origin 2>$null

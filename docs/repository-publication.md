@@ -1,18 +1,22 @@
-# Publish this repository to GitHub
+# Publish or clone this repository
 
-Create an empty GitHub repository named `omnistem-god-mode`, without adding a README, license, or `.gitignore`. Then run from the extracted project directory:
+The official repository is:
 
-```bash
-git remote add origin https://github.com/krishavi85/omnistem-god-mode.git
-git branch -M main
-git push -u origin main
+```text
+https://github.com/krishavi85/OmniStem
 ```
 
-Alternatively, clone the supplied Git bundle:
+Clone it with:
 
 ```bash
-git clone omnistem-god-mode.git.bundle omnistem-god-mode
-cd omnistem-god-mode
-git remote set-url origin https://github.com/krishavi85/omnistem-god-mode.git
+git clone https://github.com/krishavi85/OmniStem.git
+cd OmniStem
+```
+
+To point an existing local checkout at this repository:
+
+```bash
+git remote set-url origin https://github.com/krishavi85/OmniStem.git
+git branch -M main
 git push -u origin main
 ```
