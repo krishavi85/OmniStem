@@ -1,0 +1,9 @@
+{
+  "input_file": "/absolute/path/song.wav",
+  "output_dir": "/absolute/path/outputs",
+  "engine": "demucs",
+  "model": "htdemucs_ft",
+  "stems": ["vocals", "drums", "bass", "other"],
+  "device": "auto",
+  "output_format": "wav"
+}

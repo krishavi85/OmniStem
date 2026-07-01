@@ -1,0 +1,6 @@
+name: Studio WAV 32-bit float
+format: wav
+subtype: float32
+preserve_sample_rate: true
+preserve_channels: true
+normalize: false

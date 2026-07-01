@@ -1,0 +1,12 @@
+name: god-vocals
+status: experimental
+stages:
+  - type: separate
+    engine: audio-separator
+    model: model_bs_roformer_ep_317_sdr_12.9755.ckpt
+    stems: [vocals, instrumental]
+  - type: validate
+    checks: [duration, sample_rate, clipping]
+export:
+  format: wav
+  subtype: float32

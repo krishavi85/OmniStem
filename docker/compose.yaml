@@ -1,0 +1,9 @@
+services:
+  omnistem:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    volumes:
+      - ../audio:/audio
+      - ../outputs:/outputs
+    command: ["doctor", "--json"]
