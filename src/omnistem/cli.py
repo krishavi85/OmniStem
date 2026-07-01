@@ -193,6 +193,9 @@ def separate(
         list[str] | None,
         typer.Option("--extra-arg", help="Repeat for verified native engine flags."),
     ] = None,
+    overwrite: Annotated[
+        bool, typer.Option("--overwrite", help="Allow a non-empty output directory.")
+    ] = False,
     dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
     json_output: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
@@ -205,11 +208,16 @@ def separate(
         stems=tuple(part.strip() for part in stems.split(",") if part.strip()),
         device=device,
         output_format=output_format,
+        overwrite=overwrite,
         extra_args=tuple(extra_arg or ()),
     )
     orchestrator = Orchestrator()
     try:
-        prepared, command = orchestrator.prepare(job, allow_missing_engine=dry_run)
+        prepared, command = orchestrator.prepare(
+            job,
+            allow_missing_engine=dry_run,
+            create_output_dir=not dry_run,
+        )
     except Exception as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=2) from exc
@@ -243,6 +251,9 @@ def batch(
     model: Annotated[str | None, typer.Option()] = None,
     stems: Annotated[str, typer.Option()] = "vocals,instrumental",
     output: Annotated[Path, typer.Option()] = Path("outputs"),
+    device: Annotated[str, typer.Option()] = "auto",
+    output_format: Annotated[str, typer.Option("--format")] = "wav",
+    overwrite: Annotated[bool, typer.Option("--overwrite")] = False,
     recursive: Annotated[bool, typer.Option("--recursive/--no-recursive")] = True,
     dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
 ) -> None:
@@ -274,10 +285,22 @@ def batch(
     for path in files:
         target = output / path.stem
         console.rule(path.name)
-        job = SeparationJob(path, target, engine, model, tuple(stems.split(",")))
+        parsed_stems = tuple(part.strip() for part in stems.split(",") if part.strip())
+        job = SeparationJob(
+            input_file=path,
+            output_dir=target,
+            engine=engine,
+            model=model,
+            stems=parsed_stems,
+            device=device,
+            output_format=output_format,
+            overwrite=overwrite,
+        )
         orchestrator = Orchestrator()
         if dry_run:
-            _, command = orchestrator.prepare(job, allow_missing_engine=True)
+            _, command = orchestrator.prepare(
+                job, allow_missing_engine=True, create_output_dir=False
+            )
             console.print(command)
             continue
         result = asyncio.run(orchestrator.run(job, on_line=console.print))
