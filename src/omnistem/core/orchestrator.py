@@ -5,8 +5,8 @@ from collections.abc import Callable
 
 from omnistem.core.history import JobHistory
 from omnistem.core.manifest import write_manifest
-from omnistem.core.paths import ensure_output_dir, validate_input_file
-from omnistem.core.subprocess_runner import run_command
+from omnistem.core.paths import prepare_output_dir, validate_input_file
+from omnistem.core.subprocess_runner import ProcessOutput, run_command
 from omnistem.core.types import JobStatus, SeparationJob, SeparationResult
 from omnistem.engines.registry import get_engine
 
@@ -16,12 +16,20 @@ class Orchestrator:
         self.history = history or JobHistory()
 
     def prepare(
-        self, job: SeparationJob, allow_missing_engine: bool = False
+        self,
+        job: SeparationJob,
+        *,
+        allow_missing_engine: bool = False,
+        create_output_dir: bool = True,
     ) -> tuple[SeparationJob, list[str]]:
         job.input_file = validate_input_file(job.input_file)
-        job.output_dir = ensure_output_dir(job.output_dir)
+        job.output_format = job.output_format.lower().lstrip(".")
+        job.output_dir = prepare_output_dir(
+            job.output_dir, create=create_output_dir, overwrite=job.overwrite
+        )
         job.job_id = job.job_id or uuid.uuid4().hex
         engine = get_engine(job.engine)
+        engine.validate_job(job)
         engine.allow_missing_executable = allow_missing_engine
         try:
             command = engine.build_command(job)
@@ -43,9 +51,23 @@ class Orchestrator:
             "command": command,
         }
         self.history.upsert(record)
-        output = await run_command(command, on_line=on_line)
         engine = get_engine(job.engine)
-        artifacts = engine.collect_outputs(job)
+        before = {path.resolve(): path.stat().st_mtime_ns for path in engine.collect_outputs(job)}
+        try:
+            output = await run_command(command, on_line=on_line)
+        except Exception as exc:
+            output = ProcessOutput(127, "", f"{type(exc).__name__}: {exc}")
+        discovered = engine.collect_outputs(job)
+        artifacts = [
+            path
+            for path in discovered
+            if path.resolve() not in before
+            or path.stat().st_mtime_ns != before[path.resolve()]
+        ]
+        if output.return_code == 0 and not artifacts:
+            message = "Engine exited successfully but produced no new audio artifacts."
+            stderr = f"{output.stderr}\n{message}".strip()
+            output = ProcessOutput(1, output.stdout, stderr)
         manifest = write_manifest(
             job.output_dir / "job-manifest.json",
             {
