@@ -1,35 +1,44 @@
 # OmniStem God Mode
 
-OmniStem is a local-first orchestration layer for real open-source music source-separation engines. It does not reimplement the neural networks or bundle third-party checkpoints. It detects installed engines, constructs their native commands safely, runs them without shell interpolation, records job history in SQLite, and writes a reproducible JSON manifest for every run.
+OmniStem is a local-first orchestration layer for real open-source music source-separation engines. It does not simulate separation or bundle third-party checkpoints. It validates a job, constructs the selected engine's native command without shell interpolation, runs the external process, records history in SQLite, and writes a reproducible JSON manifest.
 
-## Implemented in 0.1.0
+## Implemented in 0.1.1
 
 - Unified `omnistem` CLI
 - Real adapters for Audio Separator, Demucs, Spleeter, and Open-Unmix
-- `doctor`, `env`, model registry, audio inspection, batch separation, dry runs, and JSON output
-- Persistent SQLite job history
-- Per-run `job-manifest.json`
+- Engine-specific input, output-format, stem, and device validation
+- Batch processing, dry runs, JSON output, environment diagnostics, and model metadata
+- Persistent SQLite job history and per-run manifests
 - Validated weighted waveform ensemble
-- Optional FastAPI server
-- Optional PySide6 desktop application
-- FFmpeg/FFprobe diagnostics
-- Unit tests and GitHub Actions
-- Docker and Windows/Linux setup scripts
+- Optional FastAPI server and PySide6 desktop application
+- Cross-platform tests and GitHub Actions
+- Docker configuration and Windows/Linux setup scripts
 
-## Important licensing design
+## What “real” means
 
-OmniStem invokes upstream packages as external engines. It does not vendor their source code or model weights. Code licenses and checkpoint licenses can differ. Review `THIRD_PARTY_LICENSES.md` and `MODEL_LICENSES.md` before distributing outputs or using a model commercially.
+OmniStem invokes the actual upstream command-line programs. A full separation requires the selected package, its runtime dependencies, and its model weights. Model downloads can be large and are handled by the upstream engine.
+
+The test suite validates command construction, input/output protection, manifests, history, packaging, and CLI behavior. It does not download every neural model during CI.
 
 ## Requirements
 
-- Python 3.10+
-- FFmpeg recommended
+- Python 3.10 or newer for OmniStem core
+- FFmpeg and FFprobe recommended
 - At least one supported engine installed
+- Spleeter 2.4.x requires a Python 3.8-3.11 environment
 
-## Install core
+## Install
 
 ```bash
 python -m venv .venv
+```
+
+Linux or macOS:
+
+```bash
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -e .
 ```
 
 Windows PowerShell:
@@ -40,24 +49,21 @@ python -m pip install --upgrade pip
 pip install -e .
 ```
 
-Linux/macOS:
-
-```bash
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -e .
-```
-
-Install one or more engines in the same environment, or use a dedicated environment per engine:
+Install one or more engines:
 
 ```bash
 pip install -U demucs
 pip install "audio-separator[cpu]"
-pip install spleeter
-pip install openunmix
+pip install "openunmix>=1.3,<2"
 ```
 
-Optional OmniStem features:
+Install Spleeter in Python 3.11:
+
+```bash
+pip install "spleeter>=2.4,<2.5"
+```
+
+Optional application features:
 
 ```bash
 pip install -e ".[ensemble]"
@@ -66,7 +72,7 @@ pip install -e ".[desktop]"
 pip install -e ".[dev]"
 ```
 
-## First checks
+## Diagnose the environment
 
 ```bash
 omnistem --version
@@ -76,15 +82,16 @@ omnistem engines list
 omnistem models list
 ```
 
-## Separate audio
+## Separation examples
 
-Audio Separator with a verified BS-RoFormer filename:
+Audio Separator:
 
 ```bash
 omnistem separate song.wav \
   --engine audio-separator \
   --model model_bs_roformer_ep_317_sdr_12.9755.ckpt \
   --stems vocals,instrumental \
+  --format flac \
   --output outputs/bs-roformer
 ```
 
@@ -109,7 +116,7 @@ omnistem separate song.wav \
   --output outputs/demucs-6s
 ```
 
-Spleeter:
+Spleeter four stems:
 
 ```bash
 omnistem separate song.mp3 \
@@ -119,21 +126,26 @@ omnistem separate song.mp3 \
   --output outputs/spleeter
 ```
 
-Open-Unmix:
+Open-Unmix vocals plus instrumental residual:
 
 ```bash
 omnistem separate song.wav \
   --engine openunmix \
   --model umxhq \
-  --stems vocals,drums,bass,other \
+  --stems vocals,instrumental \
+  --device cpu \
   --output outputs/openunmix
 ```
 
-Preview the exact command without running it:
+Open-Unmix accepts WAV, FLAC, and OGG input through its native CLI. Convert MP3 or M4A input with FFmpeg first.
+
+Preview the validated command without running it or creating the output directory:
 
 ```bash
 omnistem separate song.wav --engine demucs --model htdemucs_ft --dry-run --json
 ```
+
+OmniStem refuses to use a non-empty output directory unless `--overwrite` is supplied.
 
 ## Batch mode
 
@@ -145,17 +157,14 @@ omnistem batch ./songs \
   --recursive
 ```
 
-## Ensemble aligned stems
-
-Install `omnistem[ensemble]`, then:
+## Ensemble
 
 ```bash
+pip install -e ".[ensemble]"
 omnistem ensemble model-a/vocals.wav model-b/vocals.wav \
   --weights 0.6,0.4 \
   --output ensemble/vocals.wav
 ```
-
-The ensemble command rejects mismatched sample rates, channel counts, or durations.
 
 ## API
 
@@ -164,16 +173,6 @@ pip install -e ".[api]"
 omnistem serve --host 127.0.0.1 --port 8765
 ```
 
-Main endpoints:
-
-- `GET /health`
-- `GET /engines`
-- `GET /models`
-- `GET /jobs`
-- `POST /jobs`
-
-The API binds to localhost by default. Do not expose it publicly without authentication and network controls.
-
 ## Desktop
 
 ```bash
@@ -181,16 +180,29 @@ pip install -e ".[desktop]"
 omnistem desktop
 ```
 
-The desktop MVP lets users select an audio file, output folder, engine, native model name, and stems; then it streams engine logs and writes a manifest.
+## Docker
+
+The default image installs Demucs:
+
+```bash
+docker build -t omnistem .
+docker run --rm omnistem doctor --json
+```
 
 ## Development
 
 ```bash
-pip install -e ".[dev]"
-ruff check .
+pip install -e ".[dev,api,ensemble]"
+ruff check src tests
+mypy src/omnistem
 pytest
+python -m build
 ```
 
-## Repository status
+See `docs/repository-publication.md` for clone, update, remote, contribution, and verification instructions.
 
-This release is a working orchestration MVP. Advanced MSST, MVSEP-MDX23, native BSRoformer.cpp, node pipelines, spectral ensembles, installer generation, and benchmark scoring belong to the next milestones. They are not falsely presented as implemented.
+## Licensing and scope
+
+OmniStem does not vendor upstream source code or model weights. Review `THIRD_PARTY_LICENSES.md` and `MODEL_LICENSES.md` before redistribution or commercial checkpoint use.
+
+This release is a working orchestration MVP, not the complete God Mode roadmap. MSST, MVSEP-MDX23, native BSRoformer.cpp, node pipelines, spectral ensembles, signed installers, and reference-dataset benchmarks remain future milestones.
