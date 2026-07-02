@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import shutil
+
 from omnistem.core.types import SeparationJob
 from omnistem.engines.base import SeparationEngine
 
@@ -14,6 +16,17 @@ class DemucsEngine(SeparationEngine):
 
     def install_hint(self) -> str:
         return "Install with: pip install -U demucs"
+
+    def executable(self) -> str:
+        executable = shutil.which("demucs")
+        if executable:
+            return executable
+        if self.allow_missing_executable:
+            return "demucs"
+        raise RuntimeError(f"Demucs is not installed. {self.install_hint()}")
+
+    def command_prefix(self) -> list[str]:
+        return [self.executable()]
 
     def validate_job(self, job: SeparationJob) -> None:
         super().validate_job(job)
