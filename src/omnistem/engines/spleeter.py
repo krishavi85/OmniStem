@@ -9,17 +9,22 @@ class SpleeterEngine(SeparationEngine):
     display_name = "Spleeter"
     executable_candidates = ("spleeter",)
     package_name = "spleeter"
+    module_name = "spleeter"
+    supported_output_formats = frozenset({"wav", "mp3", "ogg", "m4a", "wma", "flac"})
 
     def install_hint(self) -> str:
-        return "Install with: pip install spleeter"
+        return "Install Spleeter in a compatible Python environment."
+
+    def validate_job(self, job: SeparationJob) -> None:
+        super().validate_job(job)
+        if len(job.stems) not in {2, 4, 5}:
+            raise ValueError("Spleeter supports 2, 4, or 5-stem presets")
 
     def build_command(self, job: SeparationJob) -> list[str]:
         stem_count = len(job.stems) if job.stems else 2
-        if stem_count not in {2, 4, 5}:
-            raise ValueError("Spleeter supports 2, 4, or 5-stem presets")
         preset = job.model or f"spleeter:{stem_count}stems"
-        command = [
-            self.executable(),
+        return [
+            *self.command_prefix(),
             "separate",
             "-p",
             preset,
@@ -30,4 +35,3 @@ class SpleeterEngine(SeparationEngine):
             *job.extra_args,
             str(job.input_file),
         ]
-        return command
