@@ -29,11 +29,20 @@ def validate_input_file(path: Path) -> Path:
 
 
 def safe_name(value: str) -> str:
-    value = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", value).strip(" .")
-    return value or "untitled"
+    value = re.sub(r'[<>:"/\\|?*]', "_", value)
+    value = "".join("_" if ord(character) < 32 else character for character in value)
+    return value.strip(" .") or "untitled"
 
 
-def ensure_output_dir(path: Path) -> Path:
+def prepare_output_dir(path: Path, *, create: bool, overwrite: bool) -> Path:
     resolved = path.expanduser().resolve()
-    resolved.mkdir(parents=True, exist_ok=True)
+    if resolved.exists() and not resolved.is_dir():
+        raise NotADirectoryError(f"Output path is not a directory: {resolved}")
+    if resolved.exists() and not overwrite and any(resolved.iterdir()):
+        raise FileExistsError(
+            f"Output directory is not empty: {resolved}. "
+            "Choose another directory or pass --overwrite."
+        )
+    if create:
+        resolved.mkdir(parents=True, exist_ok=True)
     return resolved
