@@ -4,12 +4,15 @@ import asyncio
 import sys
 from pathlib import Path
 
+from omnistem import __version__
+
 
 def main() -> None:
     try:
         from PySide6.QtCore import QThread, Signal
         from PySide6.QtWidgets import (
             QApplication,
+            QCheckBox,
             QComboBox,
             QFileDialog,
             QFormLayout,
@@ -43,14 +46,14 @@ def main() -> None:
             try:
                 result = asyncio.run(Orchestrator().run(self.job, on_line=self.line.emit))
                 self.finished_result.emit(result)
-            except Exception as exc:  # UI boundary
+            except Exception as exc:
                 self.failed.emit(str(exc))
 
     class Window(QMainWindow):
         def __init__(self) -> None:
             super().__init__()
             self.worker = None
-            self.setWindowTitle("OmniStem God Mode 0.1.0")
+            self.setWindowTitle(f"OmniStem God Mode {__version__}")
             self.resize(900, 620)
             central = QWidget()
             layout = QVBoxLayout(central)
@@ -82,6 +85,9 @@ def main() -> None:
 
             self.stems_edit = QLineEdit("vocals,instrumental")
             form.addRow("Stems", self.stems_edit)
+
+            self.overwrite_check = QCheckBox("Allow non-empty output directory")
+            form.addRow("Overwrite", self.overwrite_check)
             layout.addLayout(form)
 
             self.status_label = QLabel("Ready")
@@ -118,6 +124,7 @@ def main() -> None:
                 stems=tuple(
                     part.strip() for part in self.stems_edit.text().split(",") if part.strip()
                 ),
+                overwrite=self.overwrite_check.isChecked(),
             )
             self.log.clear()
             self.start_button.setEnabled(False)
