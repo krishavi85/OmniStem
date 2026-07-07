@@ -13,7 +13,7 @@ license-files = ["LICENSE"]
 authors = [{name = "Krishan Oedairadjsingh (K.O.SONGS)"}]
 dependencies = [
   "typer>=0.12,<1",
-  "rich>=13.7,<15",
+  "rich>=13.7,<16",
   "platformdirs>=4.2,<5",
 ]
 
